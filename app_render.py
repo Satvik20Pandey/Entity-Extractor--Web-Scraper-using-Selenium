@@ -1,14 +1,13 @@
 import streamlit as st
 import pandas as pd
 import time
-from scraper import EntityScraper
+from scraper_render import EntityScraperRender
 import io
 import base64
 from datetime import datetime
 import plotly.express as px
-import plotly.graph_objects as go
 
-
+# Page configuration
 st.set_page_config(
     page_title="Entity Extractor - Web Scraping Tool",
     page_icon="🔍",
@@ -16,7 +15,7 @@ st.set_page_config(
     initial_sidebar_state="expanded"
 )
 
-
+# Custom CSS for modern UI
 st.markdown("""
 <style>
     .main-header {
@@ -68,18 +67,6 @@ st.markdown("""
         box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
     }
     
-    .url-input {
-        border: 2px solid #e0e0e0;
-        border-radius: 10px;
-        padding: 0.5rem;
-        transition: border-color 0.3s ease;
-    }
-    
-    .url-input:focus {
-        border-color: #667eea;
-        outline: none;
-    }
-    
     .success-message {
         background: #d4edda;
         color: #155724;
@@ -107,15 +94,6 @@ st.markdown("""
         margin: 1rem 0;
     }
     
-    .warning-message {
-        background: #fff3cd;
-        color: #856404;
-        padding: 1rem;
-        border-radius: 10px;
-        border: 1px solid #ffeaa7;
-        margin: 1rem 0;
-    }
-    
     .extraction-info {
         background: #e2e3e5;
         color: #383d41;
@@ -124,12 +102,21 @@ st.markdown("""
         border: 1px solid #d6d8db;
         margin: 1rem 0;
     }
+    
+    .render-note {
+        background: #fff3cd;
+        color: #856404;
+        padding: 1rem;
+        border-radius: 10px;
+        border: 1px solid #ffeaa7;
+        margin: 1rem 0;
+    }
 </style>
 """, unsafe_allow_html=True)
 
 # Initialize session state
 if 'scraper' not in st.session_state:
-    st.session_state.scraper = EntityScraper()
+    st.session_state.scraper = EntityScraperRender()
 if 'scraped_data' not in st.session_state:
     st.session_state.scraped_data = pd.DataFrame()
 if 'is_scraping' not in st.session_state:
@@ -137,47 +124,54 @@ if 'is_scraping' not in st.session_state:
 
 def download_excel(df, filename="scraped_data.xlsx"):
     """Create and download Excel file"""
-    output = io.BytesIO()
-    with pd.ExcelWriter(output, engine='openpyxl') as writer:
-        df.to_excel(writer, sheet_name='Scraped_Data', index=False)
-    output.seek(0)
-    
-    b64 = base64.b64encode(output.read()).decode()
-    href = f'<a href="data:application/vnd.openxmlformats-officedocument.spreadsheetml.sheet;base64,{b64}" download="{filename}">Download Excel File</a>'
-    return href
+    try:
+        output = io.BytesIO()
+        with pd.ExcelWriter(output, engine='openpyxl') as writer:
+            df.to_excel(writer, sheet_name='Scraped_Data', index=False)
+        output.seek(0)
+        
+        b64 = base64.b64encode(output.read()).decode()
+        href = f'<a href="data:application/vnd.openxmlformats-officedocument.spreadsheetml.sheet;base64,{b64}" download="{filename}">Download Excel File</a>'
+        return href
+    except Exception as e:
+        st.error(f"Error creating Excel file: {e}")
+        return None
 
 def create_visualizations(df):
     """Create interactive visualizations for the scraped data"""
     if df.empty:
         return
     
-    col1, col2 = st.columns(2)
-    
-    with col1:
-        # Entity name length distribution
-        if 'Entity_Name' in df.columns:
-            name_lengths = df['Entity_Name'].str.len()
-            fig_length = px.histogram(
-                x=name_lengths,
-                title="Entity Name Length Distribution",
-                nbins=20,
-                color_discrete_sequence=['#667eea']
-            )
-            fig_length.update_layout(height=400)
-            st.plotly_chart(fig_length, use_container_width=True)
-    
-    with col2:
-        # Address length distribution
-        if 'Address' in df.columns:
-            address_lengths = df['Address'].str.len()
-            fig_address = px.histogram(
-                x=address_lengths,
-                title="Address Length Distribution",
-                nbins=20,
-                color_discrete_sequence=['#764ba2']
-            )
-            fig_address.update_layout(height=400)
-            st.plotly_chart(fig_address, use_container_width=True)
+    try:
+        col1, col2 = st.columns(2)
+        
+        with col1:
+            # Entity name length distribution
+            if 'Entity_Name' in df.columns:
+                name_lengths = df['Entity_Name'].str.len()
+                fig_length = px.histogram(
+                    x=name_lengths,
+                    title="Entity Name Length Distribution",
+                    nbins=20,
+                    color_discrete_sequence=['#667eea']
+                )
+                fig_length.update_layout(height=400)
+                st.plotly_chart(fig_length, use_container_width=True)
+        
+        with col2:
+            # Address length distribution
+            if 'Address' in df.columns:
+                address_lengths = df['Address'].str.len()
+                fig_address = px.histogram(
+                    x=address_lengths,
+                    title="Address Length Distribution",
+                    nbins=20,
+                    color_discrete_sequence=['#764ba2']
+                )
+                fig_address.update_layout(height=400)
+                st.plotly_chart(fig_address, use_container_width=True)
+    except Exception as e:
+        st.warning(f"Could not create visualizations: {e}")
 
 def main():
     # Header
@@ -186,15 +180,19 @@ def main():
         <h1>🔍 Entity Extractor</h1>
         <p>Extract Entity Names and Addresses from Website Tables</p>
         <p>Simply paste a website URL and get accurate entity data</p>
+        <p><strong>🌐 Cloud-Optimized for Render</strong></p>
+    </div>
+    """, unsafe_allow_html=True)
+    
+    # Render-specific note
+    st.markdown("""
+    <div class="render-note">
+        <strong>🌐 Render Deployment Note:</strong> This version is optimized for cloud deployment and uses regular HTTP requests instead of Selenium for better compatibility and performance.
     </div>
     """, unsafe_allow_html=True)
     
     # Sidebar
     st.sidebar.markdown("## ⚙️ Settings")
-    
-    # Scraping options
-    st.sidebar.markdown("### Scraping Options")
-    use_selenium = st.sidebar.checkbox("Use Selenium (for dynamic websites)", value=False)
     
     # Example URLs
     st.sidebar.markdown("### 📋 Example URLs to Try")
@@ -236,11 +234,13 @@ def main():
             """)
         
         with col2:
-            st.markdown("### ⚙️ Scraping Options")
+            st.markdown("### ⚙️ Scraping Mode")
             st.info("""
-            **Regular Mode**: For static HTML tables (faster)
+            **Cloud-Optimized**: Uses regular HTTP requests for better compatibility
             
-            **Selenium Mode**: For dynamic JavaScript-rendered content
+            **Fast & Reliable**: Works on most static HTML websites
+            
+            **No Browser Required**: Perfect for cloud deployment
             """)
         
         # Scrape button
@@ -273,8 +273,7 @@ def main():
                     
                     scraped_data = st.session_state.scraper.scrape_website(
                         url_input, 
-                        "entity",
-                        use_selenium=use_selenium
+                        "entity"
                     )
                     
                     progress_bar.progress(75)
@@ -332,13 +331,13 @@ def main():
                         else:
                             st.warning("⚠️ No entities with addresses found. The website might not have the expected table structure.")
                     else:
-                        st.error("❌ No data found on the website. Please check the URL or try using Selenium option.")
+                        st.error("❌ No data found on the website. Please check the URL or try a different website.")
                     
                     st.rerun()
                     
                 except Exception as e:
                     st.error(f"❌ Error during extraction: {str(e)}")
-                    st.info("💡 Try using the Selenium option for dynamic websites or check the URL format.")
+                    st.info("💡 Try a different website or check the URL format.")
                 finally:
                     st.session_state.is_scraping = False
     
@@ -392,7 +391,8 @@ def main():
                 if not df_filtered.empty:
                     filename = f"entities_and_addresses_{datetime.now().strftime('%Y%m%d_%H%M%S')}.xlsx"
                     download_link = download_excel(df_filtered, filename)
-                    st.markdown(download_link, unsafe_allow_html=True)
+                    if download_link:
+                        st.markdown(download_link, unsafe_allow_html=True)
             
             with col2:
                 if not df_filtered.empty:
